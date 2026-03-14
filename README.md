@@ -1,7 +1,7 @@
-Interactive-Digital-Museum
+# Interactive-Digital-Museum
 ---
 
-# Project Description
+### Project Description
 **The Voices of History** is a real-time interactive digital museum powered by Gemini multimodal AI.
 The system allows users to naturally converse with historical figures such as Tutankhamun, Nefertiti, Isaac Newton, and Leonardo da Vinci through voice, text, and images.
 Users can speak to characters in real time, interrupt them naturally, and even show them photos of artifacts or historical objects. The AI analyzes the image and responds with contextual historical knowledge.
