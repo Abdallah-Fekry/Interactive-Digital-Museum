@@ -472,7 +472,7 @@ if st.session_state.is_talk and not st.session_state.image:
         gender = (st.session_state.characters_data.get(st.session_state.character, {})).get('gender', '')
         await play_audio_bytes(st.session_state.audio_bytes)
         duration = get_audio_duration(st.session_state.audio_bytes)
-        await asyncio.sleep(max(0, duration-2.5))
+        await asyncio.sleep(max(0, duration-1.5))
 
         async for chunk in chat(st.session_state.text):
             full_text += chunk.text
@@ -490,27 +490,27 @@ if st.session_state.is_talk and not st.session_state.image:
                 duration = get_audio_duration(audio_bytes)
                 if st.session_state.language == 'Arabic':
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.6))
+                        await asyncio.sleep(max(0, duration-1.5))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1.5))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.5))
+                        await asyncio.sleep(max(0, duration-1.5))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1.5))
 
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
             await play_audio_bytes(audio_bytes)
             duration = get_audio_duration(audio_bytes)
-            await asyncio.sleep(duration-1.6)
+            await asyncio.sleep(duration-1.5)
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(2.3)
+                await asyncio.sleep(1.5)
             else:
-                await asyncio.sleep(1.7)
+                await asyncio.sleep(1.5)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
