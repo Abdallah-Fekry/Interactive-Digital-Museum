@@ -537,9 +537,9 @@ if st.session_state.is_talk:
                         await asyncio.sleep(max(0, duration-2))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.5))
+                        await asyncio.sleep(max(0, duration-1.5))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1.5))
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
