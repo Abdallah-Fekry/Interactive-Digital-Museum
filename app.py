@@ -464,7 +464,7 @@ if message:
 
 if st.session_state.is_talk and not st.session_state.image:
     text_placeholder = st.empty()
-    delimiters = ['.', '،', ',', '?', '!', '\n']
+    delimiters = ['.', '?', '!', '\n']
     async def main():
         text = ""
         t = ""
@@ -478,7 +478,7 @@ if st.session_state.is_talk and not st.session_state.image:
             full_text += chunk.text
             text += chunk.text
             placeholder.markdown(html_block.format(align = "right" if st.session_state.language=="Arabic" else "justify", content=full_text, height='240px'), unsafe_allow_html=True)
-            delimiters = ['،', ',', '.', '?', '!', '\n']
+            # delimiters = ['،', ',', '.', '?', '!', '\n']
             for d in delimiters:
                 if d in text:
                     t = text.split(d, maxsplit=1)[0].strip()
@@ -559,27 +559,27 @@ if st.session_state.image:
                 duration = get_audio_duration(audio_bytes)
                 if st.session_state.language == 'Arabic':
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.6))
+                        await asyncio.sleep(max(0, duration-1.5))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1.5))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.5))
+                        await asyncio.sleep(max(0, duration-1.5))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1.5))
 
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
             await play_audio_bytes(audio_bytes)
             duration = get_audio_duration(audio_bytes)
-            await asyncio.sleep(duration-1.6)
+            await asyncio.sleep(duration-1.5)
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(2.3)
+                await asyncio.sleep(1.5)
             else:
-                await asyncio.sleep(1.7)
+                await asyncio.sleep(1.5)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
