@@ -1,7 +1,6 @@
 edge_tts
-google
 google-genai
 soundfile
 SpeechRecognition
 streamlit == 1.54.0
-opencv-python
+opencv-python-headless
