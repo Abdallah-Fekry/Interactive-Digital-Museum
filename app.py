@@ -35,7 +35,7 @@ if st.session_state.is_change:
 if "transform" not in st.session_state:
     st.session_state.transform = False
 
-API = st.secrets["GEMINI_API_KEY"]
+API = os.environ.get("GEMINI_API_KEY")
 
 
 if "chat" not in st.session_state:
