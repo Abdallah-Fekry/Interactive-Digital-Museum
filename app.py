@@ -13,6 +13,7 @@ import io
 import soundfile as sf
 from VoiceIn import VoiceIn
 
+
 st.set_page_config(page_title="Digital Museum", page_icon='static/page_icon.png')
 st.logo("static/Logo.png", size='large')
 
