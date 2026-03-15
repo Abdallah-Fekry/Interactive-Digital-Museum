@@ -1,0 +1,6 @@
+[server]
+enableStaticServing = true
+
+[theme]
+base="dark"
+primaryColor:"#ffa500"
