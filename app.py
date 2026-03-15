@@ -3,20 +3,18 @@ import time
 import base64
 import json
 import os
-import asyncio
 import edge_tts
 import cv2
 import numpy as np
 from google import genai
 from google.genai import types
+import asyncio
+import speech_recognition as sr
 import io
 import soundfile as sf
-from VoiceIn import VoiceIn
-
 
 st.set_page_config(page_title="Digital Museum", page_icon='static/page_icon.png')
 st.logo("static/Logo.png", size='large')
-
 
 if "first" not in st.session_state:
     st.session_state.first = True
@@ -28,21 +26,16 @@ char_placeholder = st.empty()
 
 if st.session_state.is_change:
     bg_placeholder = st.empty()
+    # Note: must make a sleep to make streamlit remove the placeholder (don't use it from cache) (best practice) (these made a small latency but these is the only way if using streamlit)
     time.sleep(0.01)
     st.session_state.is_change = False
     st.rerun()
 
-
-if "transform" not in st.session_state:
-    st.session_state.transform = False
-
-# API = os.environ.get("GEMINI_API_KEY")
 API = os.getenv("GEMINI_API_KEY")
-# API = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
-
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
+# Default character
 if "character" not in st.session_state:
     st.session_state.character = "Karim"
 if "old_character" not in st.session_state:
@@ -52,19 +45,21 @@ if "characters_data" not in st.session_state:
         st.session_state.characters_data = json.load(file)
 if "is_talk" not in st.session_state:
     st.session_state.is_talk = False
+# Defauld Language
 if "language" not in st.session_state:
-    st.session_state.language = "Arabic"
+    st.session_state.language = "English"
+if "image" not in st.session_state:
+    st.session_state.image = None
+if "transform" not in st.session_state:
+    st.session_state.transform = False
 
+# get intro voices
 if st.session_state.character:
     if st.session_state.chat:
-        # gender = (st.session_state.characters_data.get(st.session_state.character, {})).get('gender', '')
         lang = st.session_state.language
         with open(f"intro voices/think_{st.session_state.character}_{lang}.mp3", "rb") as f:
                     st.session_state.audio_bytes = f.read()
-        # with open(f"intro voices/see_{st.session_state.character}_{lang}.mp3", "rb") as f:
-        #             st.session_state.audio_bytes = f.read()
     else:
-        # gender = (st.session_state.characters_data.get(st.session_state.character, {})).get('gender', '')
         lang = st.session_state.language
         with open(f"intro voices/greeting_{st.session_state.character}_{lang}.mp3", "rb") as f:
                     st.session_state.audio_bytes = f.read()
@@ -72,23 +67,28 @@ if st.session_state.character:
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API)
 
+# Change the character
 def change_character(name):
     st.session_state.old_character = st.session_state.character
     st.session_state.character = name
     st.session_state.is_change = True
     st.session_state.is_talk = False
     st.session_state.transform = True
+    st.session_state.change_character = True
     st.session_state.chat = []
     # st.rerun()
 
+if "change_character" in st.session_state:
+    st.session_state.change_character = False
 
+# Gemini Agent returns the output as stream
 async def chat(text):
     tools = [
         {
             "function_declarations": [
                 {
                     "name": "change_character",
-                    "description": "Change the museum character that will speak to the user, if the user asks to talk with a sertain charavter.",
+                    "description": "Change the museum character that will speak to the user, if the user asks to talk with a certain charavter.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -109,40 +109,43 @@ async def chat(text):
             ]
         }
     ]
+
     st.session_state.chat.append({"role":"user","parts":[{"text":text}]})
+
     if st.session_state.character:
         instructions = (st.session_state.characters_data.get(st.session_state.character, {})).get('prompt', '') + f"\nTalk with {st.session_state.language} language"
     else:
         with open("main prompt.txt", 'r') as f:
             instructions = f.read()
-    stream = st.session_state.client.models.generate_content_stream(
-        model="gemini-3.1-flash-lite-preview",
-        contents=st.session_state.chat,
-        config=types.GenerateContentConfig(
-            system_instruction=instructions,
-            tools=tools
+    if "agent_session" not in st.session_state or st.session_state.change_character:
+        st.session_state.agent_session = st.session_state.client.aio.chats.create(
+            model="gemini-3.1-flash-lite-preview",
+            config=types.GenerateContentConfig(
+                system_instruction=instructions,
+                tools=tools
+            )
         )
-    )
-    for chunk in stream:
+        st.session_state.change_character = False
+
+    stream = await st.session_state.agent_session.send_message_stream(text)
+
+    async for chunk in stream:
         parts = chunk.candidates[0].content.parts
-        # for part in parts:
+        
         if parts[0].function_call:
             name = parts[0].function_call.args['name']
-            # st.write(parts[0].function_call.args['name'])
             change_character(name)
             time.sleep(0.1)
             st.rerun()
+            
         if chunk.text:
             yield chunk
 
-
-def image_recognition(image_bytes):
-    if st.session_state.language == 'Arabic':
-        instructions = "تعرف علي محتوي هذه الصورة ورجع اسمه ووصفه"
-    else:
-        instructions = "Identify the content of this image and retrieve its name and description."
-    
-    response = st.session_state.client.models.generate_content(
+# Decribe images using Gemini and return output as stream
+async def image_recognition(image_bytes):
+    "Return the description of an image"
+    instructions = f"""Identify the content of this image and retrieve its name and description.\nYou must make your response in small sentences and add at the end of each sentence a dot '.'\nAlways answers in {st.session_state.language}"""
+    stream = st.session_state.client.models.generate_content_stream(
         model="gemini-2.5-flash",
         contents=[
             types.Part.from_bytes(
@@ -152,9 +155,26 @@ def image_recognition(image_bytes):
             instructions
         ]
     )
-    return response.text
 
+    for chunk in stream:
+        if chunk.text:
+            yield chunk
 
+# Voice to Text using Speech_Recognition in Arabic and English
+def speech_to_text(self, path, language):
+    """
+    Voice_To_Text
+    Takes the "path of a voice file" and convert it into text
+    """
+    with sr.AudioFile(path) as source:
+        audio = self.recognizer.record(source)
+    if language == 'Arabic':
+        text = self.recognizer.recognize_google(audio, language="ar-EG")
+    else:
+        text = self.recognizer.recognize_google(audio, language="en-US")
+    return text
+
+# convert video to base64 format
 def get_video_base64(path):
     if not os.path.exists(path):
         return None
@@ -162,9 +182,7 @@ def get_video_base64(path):
         data = f.read()
     return base64.b64encode(data).decode()
 
-if "video_index" not in st.session_state:
-    st.session_state.video_index = {}
-
+# Shows background videos for each character / setting up the environment
 def set_bg_video(video_path, char_name):
     path = os.path.basename(video_path)
     path = f"app/static/{path}"
@@ -188,6 +206,7 @@ def set_bg_video(video_path, char_name):
     """
     bg_placeholder.markdown(html, unsafe_allow_html=True)
 
+# Show the both character videos idle and talk make one visible and the other not
 def show_character_video(idle_path, talk_path, is_talk):
     idle_file = os.path.basename(idle_path)
     talk_file = os.path.basename(talk_path)
@@ -221,10 +240,8 @@ def show_character_video(idle_path, talk_path, is_talk):
     """
     char_placeholder.columns([1, 2, 1])[1].markdown(html_code, unsafe_allow_html=True)
 
-
-
+# Create a golden frame arround the uploaded image to view in the museum using opencv
 def make_frame(img):
-
     img = np.frombuffer(img, np.uint8)
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
     h, w = img.shape[:2]
@@ -248,13 +265,14 @@ def make_frame(img):
     cv2.imwrite("result.png", result)
     return "result.png"
 
-
+# Main code show characters and backgrounds
 if st.session_state.character:
     if st.session_state.is_talk:
         col1, col2, col3 = st.columns([1,1,1])
         with col1:
             if st.button(":material/stop: Stop", type='tertiary') and st.session_state.is_talk:
                 st.session_state.is_talk = False
+                st.session_state.image = None
                 st.rerun()
         with col3:
             html_block = """
@@ -267,7 +285,7 @@ if st.session_state.character:
                 color: white;
                 background:rgba(0,0,0,0.4);                
                 backdrop-filter: blur(6px);
-                height:240px;
+                height:{height};
                 overflow:auto;
             ">
             {content}
@@ -316,6 +334,7 @@ else:
 
 
 # Sidebar
+# ==========================================
 with st.sidebar:
     st.title(":orange[**Characters**] to choose")
     st.caption("Select a character to talk with...")
@@ -342,7 +361,7 @@ with st.sidebar:
                 if len(character_types[t]['names']) > 1:
                     st.divider()
     if st.button(":material/restart_alt: Reset character settings", type='tertiary'):
-        if st.session_state.character:
+        if st.session_state.character != "Karim":
             change_character('Karim')
             if st.button("Apply changes ", type='primary'):
                 st.session_state.is_change = True
@@ -356,13 +375,9 @@ with st.sidebar:
         if st.button("Save changes", type='primary'):
             st.session_state.language = new_lang
             st.rerun()
-    if st.button("Restart"):
-        st.session_state.chat = []
-        st.rerun()
-    
 
 
-# ---------- Edge TTS ----------
+# Edge TTS (Text to Speech in special voices)
 async def generate_tts(text, gender, language = st.session_state.language):
     if text:
         if language=='Arabic':
@@ -371,7 +386,8 @@ async def generate_tts(text, gender, language = st.session_state.language):
             else:
                 communicate = edge_tts.Communicate(text=text,voice="ar-EG-SalmaNeural")
         else:
-            voice = st.session_state.characters_data.get(st.session_state.character, {}).get('voice', '')            
+            voice = st.session_state.characters_data.get(st.session_state.character, {}).get('voice', '')
+            
             communicate = edge_tts.Communicate(text=text, voice=voice)
         audio_bytes = b""
         async for chunk in communicate.stream():
@@ -379,13 +395,13 @@ async def generate_tts(text, gender, language = st.session_state.language):
                 audio_bytes += chunk["data"]
         return audio_bytes
 
-
+# Get Audio time in seconds
 def get_audio_duration(audio_bytes):
     data, samplerate = sf.read(io.BytesIO(audio_bytes))
     duration = len(data) / samplerate
     return duration
 
-# ---------- play audio sequentially ----------
+# play audio sequentially
 async def play_audio_bytes(audio_bytes):
     b64 = base64.b64encode(audio_bytes).decode()
     audio_html = f"""
@@ -395,7 +411,7 @@ async def play_audio_bytes(audio_bytes):
     """
     st.markdown(audio_html, unsafe_allow_html=True)
 
-        
+
 if not st.session_state.character:
     for m in st.session_state.chat:
         if m['role'] == "human":
@@ -403,77 +419,24 @@ if not st.session_state.character:
         else:
             st.chat_message("assistant").markdown(m['parts'][0]['text'])
 
-# if len(st.session_state.messages) == 1:
-#     st.chat_message("assistant").markdown('أهلا, اقدر اساعدك ازاي؟')
-
+# Spaces to justify page layout (make the chatbar fixed in its place when talk or not)
 if not st.session_state.is_talk:
     st.space(340)
 else:
     st.space(100)
-    placeholder.markdown(html_block.format(align = "justify", content=''), unsafe_allow_html=True)
+    placeholder.markdown(html_block.format(align = "justify", content='', height='240px'), unsafe_allow_html=True)
 
-
+# Chat
 with st.columns([0.1,20,0.1])[1]:
     message = st.chat_input("Say something", accept_file=True, file_type=["jpg", "jpeg", "png"], accept_audio=True)
 
-voicein = VoiceIn()
-
-
 if message:
+    # get images input
     if message.files:
-        img = message.files[0].read()
-        path = make_frame(img)
-        col1, col2 = st.columns([1,1])
-        # =========================================================
-        with col1:
-            if st.session_state.language == 'Arabic':
-                with st.spinner('Scaning...'):
-                    response = image_recognition(img)
-                    st.write("")
-                    st.markdown(
-                        f"""
-                        <div style="
-                            direction: rtl;
-                            text-align: right;
-                            color: #FAFAFA;
-                            background-color: rgba(0,0,0,0.4);
-                            padding: 15px;
-                            border-radius: 10px;
-                            width: fit-content;
-                            font-size: 15px;
-                        ">
-                            {response}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            else:
-                st.image("result.png",caption="Your Antique")
-        # ===============================================================
-        with col2:
-            if st.session_state.language == 'Arabic':
-                st.image("result.png",caption="Your Antique")
-            else:
-                with st.spinner('Scaning...'):
-                    response = image_recognition(img)
-                    st.write("")
-                    st.markdown(
-                        f"""
-                        <div style="
-                            direction: rtl;
-                            text-align: left;
-                            color: #FAFAFA;
-                            background-color: rgba(0,0,0,0.4);
-                            padding: 15px;
-                            border-radius: 10px;
-                            width: fit-content;
-                            font-size: 15px;
-                        ">
-                            {response}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+        st.session_state.image = message.files[0].read()
+        st.session_state.is_talk = True
+        st.rerun()
+    # get text input
     if message.text:
         if st.session_state.character:
             st.session_state.text = message.text
@@ -487,25 +450,20 @@ if message:
                 st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
                 st.rerun()
             asyncio.run(chatting())
+    # get voice input
     if message.audio:
         with open("user_voice.mp3", "wb") as f:
             f.write(message.audio.read())
-        text = voicein.speech_to_text("user_voice.mp3", st.session_state.language)
-        st.session_state.text = text
-        st.session_state.is_talk = True
-        st.rerun()
-    
-if not st.session_state.character:
-    if st.session_state.first:
-        for char in text:
-            streamed_text += char
-            placeholder.markdown(html_block.format(content=streamed_text), unsafe_allow_html=True)
-            time.sleep(0.02)
+        try:
+            text = speech_to_text("user_voice.mp3", st.session_state.language)
+            st.session_state.text = text
+            st.session_state.is_talk = True
+            st.rerun()
+        except:
+            st.error(f"Your current language is {st.session_state.language}, please speak clearer in the chosed language or try again in a quite place, or you can change the language from the sidebar.")
 
-
-if st.session_state.is_talk:
+if st.session_state.is_talk and not st.session_state.image:
     text_placeholder = st.empty()
-    # audio_placeholder = st.empty()
     delimiters = ['.', '،', ',', '?', '!', '\n']
     async def main():
         text = ""
@@ -519,7 +477,7 @@ if st.session_state.is_talk:
         async for chunk in chat(st.session_state.text):
             full_text += chunk.text
             text += chunk.text
-            placeholder.markdown(html_block.format(align = "right" if st.session_state.language=="Arabic" else "justify" , content=full_text), unsafe_allow_html=True)
+            placeholder.markdown(html_block.format(align = "right" if st.session_state.language=="Arabic" else "justify", content=full_text, height='240px'), unsafe_allow_html=True)
             delimiters = ['،', ',', '.', '?', '!', '\n']
             for d in delimiters:
                 if d in text:
@@ -537,9 +495,10 @@ if st.session_state.is_talk:
                         await asyncio.sleep(max(0, duration-2))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2.5))
                     else:
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2))
+
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
@@ -559,6 +518,76 @@ if st.session_state.is_talk:
     st.session_state.is_talk = False
     st.rerun()
 
+if st.session_state.image:
+    async def main():
+        text = ""
+        t = ""
+        full_text = ""
+        gender = (st.session_state.characters_data.get(st.session_state.character, {})).get('gender', '')
+        with open(f"intro voices/see_{st.session_state.character}_{lang}.mp3", "rb") as f:
+                    audio_bytes = f.read()
+        await play_audio_bytes(audio_bytes)
+        duration = get_audio_duration(audio_bytes)
+        await asyncio.sleep(max(0, duration-2.5))
+        path = make_frame(st.session_state.image)
+        col1, col2 = st.columns([1,1])
+        with col1:
+            if st.session_state.language == 'Arabic':
+                img_placeholder = st.empty()
+            else:
+                st.image("result.png",caption="Your Antique")
+        # ===============================================================
+        with col2:
+            if st.session_state.language == 'Arabic':
+                st.image("result.png",caption="Your Antique")
+            else:
+                img_placeholder = st.empty()
+        async for chunk in image_recognition(st.session_state.image):
+            full_text += chunk.text
+            text += chunk.text
+            placeholder.markdown(html_block.format(align = "right" if st.session_state.language=="Arabic" else "justify" , content=full_text, height='240px'), unsafe_allow_html=True)
+            img_placeholder.markdown(html_block.format(align = "right" if st.session_state.language=="Arabic" else "justify" , content=full_text, height='500px'), unsafe_allow_html=True)
+            delimiters = ['،', ',', '.', '?', '!', '\n']
+            for d in delimiters:
+                if d in text:
+                    t = text.split(d, maxsplit=1)[0].strip()
+                    text = text.split(d, maxsplit=1)[1].strip()
+                    break
+            if t:
+                audio_bytes = await generate_tts(t.strip().replace('*','').replace('#',''), gender)
+                await play_audio_bytes(audio_bytes)
+                duration = get_audio_duration(audio_bytes)
+                if st.session_state.language == 'Arabic':
+                    if gender == "Male":
+                        await asyncio.sleep(max(0, duration-2.6))
+                    else:
+                        await asyncio.sleep(max(0, duration-2))
+                else:
+                    if gender == "Male":
+                        await asyncio.sleep(max(0, duration-2.5))
+                    else:
+                        await asyncio.sleep(max(0, duration-2))
+
+                t = ""
+        if text.strip():
+            audio_bytes = await generate_tts(text.strip(), gender)
+            await play_audio_bytes(audio_bytes)
+            duration = get_audio_duration(audio_bytes)
+            await asyncio.sleep(duration-1.6)
+    
+        if st.session_state.language == 'Arabic':
+            if gender == "Male":
+                await asyncio.sleep(2.3)
+            else:
+                await asyncio.sleep(1.7)
+        else:
+            await asyncio.sleep(2)
+        st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
+
+    asyncio.run(main())
+    st.session_state.is_talk = False
+    st.session_state.image = None
+    st.rerun()
 
 if st.session_state.first:
     st.session_state.first = False
