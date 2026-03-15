@@ -1,0 +1,23 @@
+{
+    "Historical":
+    {
+        "header":":orange[:material/history:] Historical characters",
+        "names":["Tut Ankh Amon","Nefertiti"],
+        "description":[":orange[:material/crown:] King of Egypt",":orange[:material/crown:] Queen of Egypt"],
+        "icons":["static/tut icon.png","static/nefertiti icon.png"]
+    },
+    "Scientific":
+    {
+        "header":":orange[:material/science:] Scintific characters",
+        "names":["Isaac Newton"],
+        "description":[":orange[:material/science:] Scintist"],
+        "icons":["static/newton icon.png"]
+    },
+    "Artistic":
+    {
+        "header":":orange[:material/brush:] Artistic characters",
+        "names":["Leonardo Davinci"],
+        "description":[":orange[:material/brush:] Artist"],
+        "icons":["static/davinci icon.png"]
+    }
+}
