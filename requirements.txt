@@ -3,4 +3,6 @@ google-genai
 soundfile
 SpeechRecognition
 streamlit
+numpy
+pillow
 opencv-python-headless
