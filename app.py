@@ -28,7 +28,7 @@ char_placeholder = st.empty()
 
 if st.session_state.is_change:
     bg_placeholder = st.empty()
-    time.sleep(0.01)
+    # time.sleep(0.01)
     st.session_state.is_change = False
     st.rerun()
 
