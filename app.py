@@ -67,6 +67,9 @@ if st.session_state.character:
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API)
 
+if "change_character" in st.session_state:
+    st.session_state.change_character = False
+
 # Change the character
 def change_character(name):
     st.session_state.old_character = st.session_state.character
@@ -78,17 +81,72 @@ def change_character(name):
     st.session_state.chat = []
     # st.rerun()
 
-if "change_character" in st.session_state:
-    st.session_state.change_character = False
+
 
 # Gemini Agent returns the output as stream
+# async def chat(text):
+#     tools = [
+#         {
+#             "function_declarations": [
+#                 {
+#                     "name": "change_character",
+#                     "description": "Change the museum character that will speak to the user, if the user asks to talk with a certain charavter.",
+#                     "parameters": {
+#                         "type": "object",
+#                         "properties": {
+#                             "name": {
+#                                 "type": "string",
+#                                 "description": "Character name",
+#                                 "enum": [
+#                                     "Nefertiti",
+#                                     "Isaac Newton",
+#                                     "Tut Ankh Amon",
+#                                     "Leonardo Davinci"
+#                                 ]
+#                             }
+#                         },
+#                         "required": ["name"]
+#                     }
+#                 }
+#             ]
+#         }
+#     ]
+
+#     st.session_state.chat.append({"role":"user","parts":[{"text":text}]})
+
+#     instructions = (st.session_state.characters_data.get(st.session_state.character, {})).get('prompt', '') + f"\nTalk with {st.session_state.language} language"
+#     # instructions = f.read()
+#     if "agent_session" not in st.session_state or st.session_state.change_character:
+#         st.session_state.agent_session = st.session_state.client.aio.chats.create(
+#             model="gemini-3.1-flash-lite-preview",
+#             config=types.GenerateContentConfig(
+#                 system_instruction=instructions,
+#                 tools=tools
+#             )
+#         )
+#         st.session_state.change_character = False
+
+#     stream = await st.session_state.agent_session.send_message_stream(text)
+
+#     async for chunk in stream:
+#         parts = chunk.candidates[0].content.parts
+        
+#         if parts[0].function_call:
+#             name = parts[0].function_call.args['name']
+#             change_character(name)
+#             time.sleep(0.1)
+#             st.rerun()
+            
+#         if chunk.text:
+#             yield chunk
 async def chat(text):
+    # client = genai.Client(api_key=API)
     tools = [
         {
             "function_declarations": [
                 {
                     "name": "change_character",
-                    "description": "Change the museum character that will speak to the user, if the user asks to talk with a certain charavter.",
+                    "description": "Change the museum character that will speak to the user, if the user asks to talk with a sertain charavter.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -109,37 +167,33 @@ async def chat(text):
             ]
         }
     ]
-
     st.session_state.chat.append({"role":"user","parts":[{"text":text}]})
-
     if st.session_state.character:
         instructions = (st.session_state.characters_data.get(st.session_state.character, {})).get('prompt', '') + f"\nTalk with {st.session_state.language} language"
     else:
         with open("main prompt.txt", 'r') as f:
             instructions = f.read()
-    if "agent_session" not in st.session_state or st.session_state.change_character:
-        st.session_state.agent_session = st.session_state.client.aio.chats.create(
-            model="gemini-3.1-flash-lite-preview",
-            config=types.GenerateContentConfig(
-                system_instruction=instructions,
-                tools=tools
-            )
+    stream = st.session_state.client.models.generate_content_stream(
+        model="gemini-3.1-flash-lite-preview",
+        contents=st.session_state.chat,
+        config=types.GenerateContentConfig(
+            system_instruction=instructions,
+            tools=tools
         )
-        st.session_state.change_character = False
-
-    stream = await st.session_state.agent_session.send_message_stream(text)
-
-    async for chunk in stream:
+    )
+    for chunk in stream:
         parts = chunk.candidates[0].content.parts
-        
+        # for part in parts:
         if parts[0].function_call:
             name = parts[0].function_call.args['name']
+            # st.write(parts[0].function_call.args['name'])
             change_character(name)
             time.sleep(0.1)
             st.rerun()
-            
         if chunk.text:
             yield chunk
+
+# st.write(st.session_state.chat)
 
 # Decribe images using Gemini and return output as stream
 async def image_recognition(image_bytes):
@@ -472,7 +526,7 @@ if st.session_state.is_talk and not st.session_state.image:
         gender = (st.session_state.characters_data.get(st.session_state.character, {})).get('gender', '')
         await play_audio_bytes(st.session_state.audio_bytes)
         duration = get_audio_duration(st.session_state.audio_bytes)
-        await asyncio.sleep(max(0, duration-1.5))
+        await asyncio.sleep(max(0, duration-1))
 
         async for chunk in chat(st.session_state.text):
             full_text += chunk.text
@@ -490,27 +544,27 @@ if st.session_state.is_talk and not st.session_state.image:
                 duration = get_audio_duration(audio_bytes)
                 if st.session_state.language == 'Arabic':
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-1))
                     else:
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-1))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-1))
                     else:
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-1))
 
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
             await play_audio_bytes(audio_bytes)
             duration = get_audio_duration(audio_bytes)
-            await asyncio.sleep(duration-1.5)
+            await asyncio.sleep(duration-1)
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.3)
             else:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(1.7)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
@@ -528,7 +582,7 @@ if st.session_state.image:
                     audio_bytes = f.read()
         await play_audio_bytes(audio_bytes)
         duration = get_audio_duration(audio_bytes)
-        await asyncio.sleep(max(0, duration-2.5))
+        await asyncio.sleep(max(0, duration-1))
         path = make_frame(st.session_state.image)
         col1, col2 = st.columns([1,1])
         with col1:
@@ -559,27 +613,27 @@ if st.session_state.image:
                 duration = get_audio_duration(audio_bytes)
                 if st.session_state.language == 'Arabic':
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2.6))
                     else:
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2.5))
                     else:
-                        await asyncio.sleep(max(0, duration-1.5))
+                        await asyncio.sleep(max(0, duration-2))
 
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
             await play_audio_bytes(audio_bytes)
             duration = get_audio_duration(audio_bytes)
-            await asyncio.sleep(duration-1.5)
+            await asyncio.sleep(duration-1.6)
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.3)
             else:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(1.7)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
