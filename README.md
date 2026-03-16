@@ -120,6 +120,11 @@ The application consists of several main components:
 ---
 
 # 🚀 Installation
+
+Test the project
+
+https://interactive-digital-museum-614445730433.europe-west1.run.app/
+
 Clone the repository
 
 ```bash
