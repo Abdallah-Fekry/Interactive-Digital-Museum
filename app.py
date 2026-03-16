@@ -81,64 +81,6 @@ def change_character(name):
     st.session_state.chat = []
     # st.rerun()
 
-
-
-# Gemini Agent returns the output as stream
-# async def chat(text):
-#     tools = [
-#         {
-#             "function_declarations": [
-#                 {
-#                     "name": "change_character",
-#                     "description": "Change the museum character that will speak to the user, if the user asks to talk with a certain charavter.",
-#                     "parameters": {
-#                         "type": "object",
-#                         "properties": {
-#                             "name": {
-#                                 "type": "string",
-#                                 "description": "Character name",
-#                                 "enum": [
-#                                     "Nefertiti",
-#                                     "Isaac Newton",
-#                                     "Tut Ankh Amon",
-#                                     "Leonardo Davinci"
-#                                 ]
-#                             }
-#                         },
-#                         "required": ["name"]
-#                     }
-#                 }
-#             ]
-#         }
-#     ]
-
-#     st.session_state.chat.append({"role":"user","parts":[{"text":text}]})
-
-#     instructions = (st.session_state.characters_data.get(st.session_state.character, {})).get('prompt', '') + f"\nTalk with {st.session_state.language} language"
-#     # instructions = f.read()
-#     if "agent_session" not in st.session_state or st.session_state.change_character:
-#         st.session_state.agent_session = st.session_state.client.aio.chats.create(
-#             model="gemini-3.1-flash-lite-preview",
-#             config=types.GenerateContentConfig(
-#                 system_instruction=instructions,
-#                 tools=tools
-#             )
-#         )
-#         st.session_state.change_character = False
-
-#     stream = await st.session_state.agent_session.send_message_stream(text)
-
-#     async for chunk in stream:
-#         parts = chunk.candidates[0].content.parts
-        
-#         if parts[0].function_call:
-#             name = parts[0].function_call.args['name']
-#             change_character(name)
-#             time.sleep(0.1)
-#             st.rerun()
-            
-#         if chunk.text:
-#             yield chunk
 async def chat(text):
     # client = genai.Client(api_key=API)
     tools = [
