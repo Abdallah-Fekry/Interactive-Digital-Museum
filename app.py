@@ -13,7 +13,7 @@ import speech_recognition as sr
 import io
 import soundfile as sf
 
-st.set_page_config(page_title="Digital Museum", page_icon='static/page_icon.png')
+st.set_page_config(page_title="Digital Museum", page_icon='static/page_icon.png.png')
 st.logo("static/Logo.png", size='large')
 
 if "first" not in st.session_state:
@@ -215,17 +215,14 @@ async def image_recognition(image_bytes):
             yield chunk
 
 # Voice to Text using Speech_Recognition in Arabic and English
-def speech_to_text(self, path, language):
-    """
-    Voice_To_Text
-    Takes the "path of a voice file" and convert it into text
-    """
+def speech_to_text(path, language):
+    recognizer = sr.Recognizer()
     with sr.AudioFile(path) as source:
-        audio = self.recognizer.record(source)
+        audio = recognizer.record(source)
     if language == 'Arabic':
-        text = self.recognizer.recognize_google(audio, language="ar-EG")
+        text = recognizer.recognize_google(audio, language="ar-EG")
     else:
-        text = self.recognizer.recognize_google(audio, language="en-US")
+        text = recognizer.recognize_google(audio, language="en-US")
     return text
 
 # convert video to base64 format
@@ -508,13 +505,10 @@ if message:
     if message.audio:
         with open("user_voice.mp3", "wb") as f:
             f.write(message.audio.read())
-        try:
-            text = speech_to_text("user_voice.mp3", st.session_state.language)
-            st.session_state.text = text
-            st.session_state.is_talk = True
-            st.rerun()
-        except:
-            st.error(f"Your current language is {st.session_state.language}, please speak clearer in the chosed language or try again in a quite place, or you can change the language from the sidebar.")
+        text = speech_to_text("user_voice.mp3", st.session_state.language)
+        st.session_state.text = text
+        st.session_state.is_talk = True
+        st.rerun()
 
 if st.session_state.is_talk and not st.session_state.image:
     text_placeholder = st.empty()
@@ -562,9 +556,9 @@ if st.session_state.is_talk and not st.session_state.image:
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(2.3)
+                await asyncio.sleep(1)
             else:
-                await asyncio.sleep(1.7)
+                await asyncio.sleep(1)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
@@ -613,27 +607,27 @@ if st.session_state.image:
                 duration = get_audio_duration(audio_bytes)
                 if st.session_state.language == 'Arabic':
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.6))
+                        await asyncio.sleep(max(0, duration-1))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1))
                 else:
                     if gender == "Male":
-                        await asyncio.sleep(max(0, duration-2.5))
+                        await asyncio.sleep(max(0, duration-1))
                     else:
-                        await asyncio.sleep(max(0, duration-2))
+                        await asyncio.sleep(max(0, duration-1))
 
                 t = ""
         if text.strip():
             audio_bytes = await generate_tts(text.strip(), gender)
             await play_audio_bytes(audio_bytes)
             duration = get_audio_duration(audio_bytes)
-            await asyncio.sleep(duration-1.6)
+            await asyncio.sleep(duration-1)
     
         if st.session_state.language == 'Arabic':
             if gender == "Male":
-                await asyncio.sleep(2.3)
+                await asyncio.sleep(1)
             else:
-                await asyncio.sleep(1.7)
+                await asyncio.sleep(1)
         else:
             await asyncio.sleep(2)
         st.session_state.chat.append({"role":"model","parts":[{"text":full_text}]})
